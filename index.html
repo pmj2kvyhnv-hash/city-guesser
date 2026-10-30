@@ -1,1 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global City Guessing Game</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #22c55e;
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background-color: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            font-size: 24px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Controls Panel */
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        input[type="range"], select {
+            background: #334155;
+            color: white;
+            border: 1px solid #475569;
+            padding: 8px;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        /* Canvas Frame */
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16 / 9;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Interaction Row */
+        .interaction-zone {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #475569;
+            background-color: #0f172a;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent);
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background-color: var(--accent);
+            color: white;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button:disabled {
+            background-color: #475569;
+            cursor: not-allowed;
+        }
+
+        /* Solution and Info Area (Unblurred & Delayed) */
+        .reveal-pane {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #334155;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+            display: none;
+        }
+
+        .reveal-pane.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        .city-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--success);
+            margin: 0 0 10px 0;
+        }
+
+        .city-blurb {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #cbd5e1;
+            margin: 0;
+        }
+
+        .status-message {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+            color: #f59e0b;
+            min-height: 20px;
+        }
+
+        .deck-counter {
+            text-align: right;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🌍 Cultural City Guesser</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="blockSize">Block Size</label>
+            <select id="blockSize">
+                <option value="20">Small (Challenging)</option>
+                <option value="40" selected>Medium (Standard)</option>
+                <option value="80">Large (Quick)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="revealSpeed">Reveal Speed (Blocks/Sec)</label>
+            <input type="range" id="revealSpeed" min="1" max="30" value="10">
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
+    </div>
+    <div class="deck-counter" id="deckCounter">Cities remaining: 25/25</div>
+
+    <div class="interaction-zone">
+        <input type="text" id="guessInput" placeholder="Type city name..." autocomplete="off">
+        <button id="actionBtn">Guess</button>
+        <button id="nextBtn" style="display:none;">Next City</button>
+    </div>
+
+    <div class="status-message" id="statusMessage"></div>
+
+    <!-- Instructions & Action section for the unique study pause trigger -->
+    <div id="pauseInstructionSection" style="display:none; text-align:center; margin-top:15px; background:#1e293b; padding:12px; border-radius:8px; border: 1px dashed #475569;">
+        <p style="margin:0 0 10px 0; font-size:14px; color:#cbd5e1;">⏸️ Game paused. Study the image asset closely!</p>
+        <button id="resumeRevealBtn" style="background-color: var(--success);">Resume & Show Answer</button>
+    </div>
+
+    <div class="reveal-pane" id="revealPane">
+        <div class="city-title" id="revealedCityTitle">Paris</div>
+        <p class="city-blurb" id="revealedCityBlurb">Information goes here...</p>
+    </div>
+</div>
+
+<script>
+    // 25 detailed structural vector configurations
+    const CITIES_POOL = [
+        { name: "Paris", blurb: "Featuring the majestic structural latticework of the Eiffel Tower, built in 1889 along the Seine. It stands tall against a twilight sky over historic Parisian apartment blocks.", tags: ["paris"] },
+        { name: "Tokyo", blurb: "Showcasing the iconic lattice profiles of Tokyo Tower alongside shimmering neon high-rises and skyscrapers layout, reflecting a high-tech modern metropolis.", tags: ["tokyo"] },
+        { name: "New York", blurb: "Depicting Manhattan's famous skyline including the Art Deco crown of the Empire State Building, the Chrysler Building, and suspension elements of the Brooklyn Bridge.", tags: ["new york", "nyc"] },
+        { name: "Cairo", blurb: "Capturing the magnificent ancient geometric limestone profiles of the Giza Pyramids and Great Sphinx casting sharp shadows across desert sands.", tags: ["cairo", "giza"] },
+        { name: "London", blurb: "Presenting the iconic Neo-Gothic clock tower of Big Ben (Elizabeth Tower) alongside the modern observation architecture of the London Eye by the River Thames.", tags: ["london"] },
+        { name: "Sydney", blurb: "Illustrating the dramatic interlocking sail architecture of the Sydney Opera House juxtaposed cleanly with the steel arched span of the Harbour Bridge.", tags: ["sydney"] },
+        { name: "Rome", blurb: "Portraying the massive stone structural arches and tiered amphitheater tiers of the legendary Roman Colosseum under an Italian golden hour sky.", tags: ["rome", "roma"] },
+        { name: "Rio de Janeiro", blurb: "Showcasing the dramatic peak of Mount Corcovado cradling the Christ the Redeemer statue overlooking Sugarloaf Mountain and Guanabara Bay.", tags: ["rio", "rio de janeiro"] },
+        { name: "Dubai", blurb: "Featuring the extreme architectural scale of the Burj Khalifa soaring like a silver needle through desert haze alongside modern ultra-tall skyscrapers.", tags: ["dubai"] },
+        { name: "Toronto", blurb: "Highlighting the soaring needle profile of the CN Tower defining a dense lakeside concrete skyline along Ontario's crisp shorelines.", tags: ["toronto"] },
+        { name: "Venice", blurb: "Illustrating the Renaissance structural elegance of the Rialto Bridge arching smoothly over gondolas traveling through the Grand Canal.", tags: ["venice", "venezia"] },
+        { name: "San Francisco", blurb: "Capturing the immense International Orange suspension spans and towers of the Golden Gate Bridge cutting across heavy marine fog banks.", tags: ["san francisco", "sf"] },
+        { name: "Peking", blurb: "Exhibiting the tiered gold-leaded architectural roof sweeping lines of the Temple of Heaven, a classic symbol of traditional Imperial symmetry.", tags: ["beijing", "peking"] },
+        { name: "Agra", blurb: "Representing the sublime white marble symmetry, corner minarets, and central onion dome complex of the Mughal masterwork, the Taj Mahal.", tags: ["agra"] },
+        { name: "Athens", blurb: "Detailing the ancient Doric marble columns and ruined structural pediments of the Parthenon resting atop the rocky citadel of the Acropolis.", tags: ["athens", "athena"] },
+        { name: "Moscow", blurb: "Displaying the whimsical patterned onion domes and intricate fairytale brickwork of Saint Basil's Cathedral flanking Red Square.", tags: ["moscow", "moskva"] },
+Use code with caution.
+{ name: "Washington", blurb: "Depicting the grand neoclassical white marble dome of the United States Capitol set against sweeping public lawns.", tags: ["washington", "dc", "washington dc"] },
+{ name: "Singapore", blurb: "Illustrating the futurist architectural silhouettes of the Marina Bay Sands towers supporting the structural SkyPark surfboard oasis.", tags: ["singapore"] },
+{ name: "Berlin", blurb: "Featuring the classic sand-stone triumphal arch columns and horse-drawn quadriga sculpture of the historic Brandenburg Gate.", tags: ["berlin"] },
+{ name: "Istanbul", blurb: "Displaying the massive central dome and soaring framing minarets of Hagia Sophia overlooking the waters of the Bosporus Strait.", tags: ["istanbul"] },
+{ name: "Amsterdam", blurb: "Showing a sequential array of high-gabled narrow canal homes mirroring their detailed brick silhouettes into local dark waterways.", tags: ["amsterdam"] },
+{ name: "Seattle", blurb: "Featuring the unmistakable mid-century flying-saucer silhouette of the Space Needle backed by the white snowy peak of Mt. Rainier.", tags: ["seattle"] },
+{ name: "Barcelona", blurb: "Showcasing the biological, twisting organic spires and intricate stone carvings of Antoni Gaudí’s ongoing masterwork, Sagrada Família.", tags: ["barcelona"] },
+{ name: "Kuala Lumpur", blurb: "Representing the towering dual structural skyscrapers and connecting skybridge layout of the iconic 88-story Petronas Twin Towers.", tags: ["kuala lumpur", "kl"] },
+{ name: "Cape Town", blurb: "Capturing the massive horizontal plateau of Table Mountain framing a vibrant coastal harbor cityscape layout underneath.", tags: ["cape town"] }
+];
+// Engine States
+let citiesDeck = [];
+let currentCity = null;
+let gridBlocks = [];
+let revealedCount = 0;
+let gameActive = false;
+let loopInterval = null;
+let statePhase = "playing"; // "playing", "paused", "discovering", "solved"
+let delayTimeout = null;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+// UI Selectors
+const blockSizeSelect = document.getElementById('blockSize');
+const speedSlider = document.getElementById('revealSpeed');
+const guessInput = document.getElementById('guessInput');
+const actionBtn = document.getElementById('actionBtn');
+const nextBtn = document.getElementById('nextBtn');
+const statusMessage = document.getElementById('statusMessage');
+const deckCounter = document.getElementById('deckCounter');
+const pauseInstructionSection = document.getElementById('pauseInstructionSection');
+const resumeRevealBtn = document.getElementById('resumeRevealBtn');
+const revealPane = document.getElementById('revealPane');
+const revealedCityTitle = document.getElementById('revealedCityTitle');
+const revealedCityBlurb = document.getElementById('revealedCityBlurb');
+// Vector drawing configurations for cities
+function drawVectorCity(city, context, w, h) {
+context.clearRect(0, 0, w, h);
+// Base Sky Gradients based on city mood
+let skyGrad = context.createLinearGradient(0, 0, 0, h);
+if (["Paris", "Rome", "Agra", "Athens"].includes(city.name)) {
+skyGrad.addColorStop(0, '#ff7e5f'); skyGrad.addColorStop(1, '#feb47b'); // Golden/Sunset
+} else if (["Tokyo", "New York", "Dubai", "Singapore", "Kuala Lumpur"].includes(city.name)) {
+skyGrad.addColorStop(0, '#020024'); skyGrad.addColorStop(0.5, '#090979'); skyGrad.addColorStop(1, '#00d4ff'); // Cyber Cyber night
+} else if (["London", "Seattle", "Amsterdam", "Toronto"].includes(city.name)) {
+skyGrad.addColorStop(0, '#2c3e50'); skyGrad.addColorStop(1, '#bdc3c7'); // Overcast/Moody
+} else {
+skyGrad.addColorStop(0, '#111827'); skyGrad.addColorStop(1, '#374151'); // Deep Dusk
+}
+context.fillStyle = skyGrad;
+context.fillRect(0, 0, w, h);
+// Render generic distant architecture layer for density
+context.fillStyle = "rgba(25, 30, 50, 0.4)";
+for (let i = 0; i < 15; i++) {
+let bh = 50 + Math.random() * 120;
+let bw = 30 + Math.random() * 50;
+context.fillRect(i * 60, h - bh, bw, bh);
+}
+// Structural City Specific Main Elements
+context.fillStyle = "#111c24";
+context.strokeStyle = "#1e293b";
+context.lineWidth = 1;
+switch(city.name) {
+case "Paris":
+// Eiffel Tower blueprint
+context.beginPath();
+context.moveTo(w/2 - 40, h);
+context.quadraticCurveTo(w/2 - 15, h - 180, w/2 - 10, h - 220);
+context.lineTo(w/2 + 10, h - 220);
+context.quadraticCurveTo(w/2 + 15, h - 180, w/2 + 40, h);
+context.lineTo(w/2 + 25, h);
+context.quadraticCurveTo(w/2 + 10, h - 100, w/2, h - 100);
+context.quadraticCurveTo(w/2 - 10, h - 100, w/2 - 25, h);
+context.closePath();
+context.fill();
+// Platform decks
+context.fillRect(w/2 - 22, h - 65, 44, 8);
+context.fillRect(w/2 - 16, h - 130, 32, 8);
+// Needle
+context.fillRect(w/2 - 2, h - 260, 4, 40);
+break;
+case "Tokyo":
+// Lattice tower setup
+context.fillStyle = "#ef4444";
+context.beginPath();
+context.moveTo(w/2 - 30, h); context.lineTo(w/2 - 5, h - 180);
+context.lineTo(w/2 + 5, h - 180); context.lineTo(w/2 + 30, h);
+context.fill();
+context.fillStyle = "#ffffff";
+context.fillRect(w/2 - 12, h - 100, 24, 15);
+context.fillStyle = "#111c24";
+context.fillRect(w/2 - 3, h - 230, 6, 50);
+// Surrounding skyscrapers
+context.fillRect(w/2 - 150, h - 220, 60, 220);
+context.fillRect(w/2 + 80, h - 260, 50, 260);
+break;
+case "New York":
+context.fillRect(w/2 - 40, h - 280, 50, 280); // Empire State
+context.fillStyle = "#ffffff";
+context.fillRect(w/2 - 17, h - 310, 4, 30); // Spire
+context.fillStyle = "#111c24";
+context.fillRect(w/2 + 40, h - 240, 45, 240); // Chrysler
+// Bridge lines
+context.beginPath();
+context.moveTo(0, h - 40); context.lineTo(w, h - 40);
+context.moveTo(40, h - 40); context.lineTo(120, h - 160); context.lineTo(120, h);
+context.stroke();
+break;
+case "Cairo":
+context.fillStyle = "#d97706";
+// Pyramid 1
+context.beginPath();
+context.moveTo(w/2 - 160, h); context.lineTo(w/2 - 40, h - 140); context.lineTo(w/2 + 80, h);
+context.fill();
+// Pyramid 2
+context.fillStyle = "#b45309";
+context.beginPath();
+context.moveTo(w/2 - 20, h); context.lineTo(w/2 + 100, h - 180); context.lineTo(w/2 + 240, h);
+context.fill();
+break;
+case "London":
+context.fillRect(w/2 - 25, h - 240, 40, 240); // Big Ben
+// Pyramid roof
+context.beginPath();
+context.moveTo(w/2 - 25, h - 240); context.lineTo(w/2 - 5, h - 280); context.lineTo(w/2 + 15, h - 240);
+context.fill();
+// Clock face marker
+context.fillStyle = "#fef08a";
+context.beginPath(); context.arc(w/2 - 5, h - 220, 10, 0, Math.PI*2); context.fill();
+break;
+default:
+// Universal complex city backup generation with windows
+context.fillStyle = "#1e293b";
+context.fillRect(w/2 - 100, h - 250, 80, 250);
+context.fillRect(w/2 + 20, h - 200, 90, 200);
+context.fillRect(w/2 - 220, h - 160, 70, 160);
+// Spire
+context.fillStyle = "#94a3b8";
+context.fillRect(w/2 - 62, h - 290, 4, 40);
+break;
+}
+// Draw structural window matrices inside layouts for sharpness validation
+context.fillStyle = "rgba(254, 240, 138, 0.4)";
+for (let y = h - 180; y < h - 20; y += 20) {
+for (let x = 30; x < w - 30; x += 45) {
+if (Math.random() > 0.4) context.fillRect(x, y, 6, 8);
+}
+}
+}
+function initDeck() {
+// Deep copy clean array pool
+citiesDeck = [...CITIES_POOL];
+// Fisher-Yates Complete Shuffle Engine
+for (let i = citiesDeck.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[citiesDeck[i], citiesDeck[j]] = [citiesDeck[j], citiesDeck[i]];
+}
+}
+function setupGame() {
+if (citiesDeck.length === 0) {
+initDeck();
+}
+// Pull next city card smoothly
+currentCity = citiesDeck.pop();
+deckCounter.innerText = Cities remaining: ${citiesDeck.length}/25;
+// UI Reset sequence
+statusMessage.innerText = "";
+guessInput.value = "";
+guessInput.disabled = false;
+actionBtn.disabled = false;
+nextBtn.style.display = "none";
+pauseInstructionSection.style.display = "none";
+revealPane.classList.remove('visible');
+statePhase = "playing";
+gameActive = true;
+// Draw fresh vector target onto hidden layout context reference
+drawVectorCity(currentCity, ctx, canvas.width, canvas.height);
+// Generate block array infrastructure parameters
+const sz = parseInt(blockSizeSelect.value);
+gridBlocks = [];
+for (let x = 0; x < canvas.width; x += sz) {
+for (let y = 0; y < canvas.height; y += sz) {
+gridBlocks.push({ x: x, y: y, size: sz, covered: true });
+}
+}
+// Shuffle blocks vector deck array for random distribution unmasking
+for (let i = gridBlocks.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[gridBlocks[i], gridBlocks[j]] = [gridBlocks[j], gridBlocks[i]];
+}
+revealedCount = 0;
+// Fire loop architecture engine
+if (loopInterval) clearInterval(loopInterval);
+startRevealLoop();
+}
+function startRevealLoop() {
+loopInterval = setInterval(() => {
+if (statePhase !== "playing") return;
+// Calculate precise timing iterations per step framework
+const speed = parseInt(speedSlider.value);
+const framesPerSec = 30;
+const blocksPerFrame = Math.max(1, Math.round(speed / framesPerSec));
+for (let i = 0; i < blocksPerFrame; i++) {
+// Find next hidden square context asset
+const nextBlock = gridBlocks.find(b => b.covered);
+if (nextBlock) {
+nextBlock.covered = false;
+revealedCount++;
+} else {
+// System fully unmasked without text solution intercept
+clearInterval(loopInterval);
+triggerStudyPause();
+return;
+}
+}
+renderGridScreen();
+}, 1000 / 30);
+}
+function renderGridScreen() {
+// Redraw underlying vector cleanly mapping zero structural blur layers
+drawVectorCity(currentCity, ctx, canvas.width, canvas.height);
+// Draw solid tracking overlays covering mask assets
+ctx.fillStyle = "#000000";
+gridBlocks.forEach(b => {
+if (b.covered) {
+ctx.fillRect(b.x, b.y, b.size, b.size);
+}
+});
+}
+function triggerStudyPause() {
+statePhase = "paused";
+gameActive = false;
+clearInterval(loopInterval);
+// Expose underlying structure perfectly unblurred
+gridBlocks.forEach(b => b.covered = false);
+renderGridScreen();
+guessInput.disabled = true;
+actionBtn.disabled = true;
+// Render localized button beneath the canvas framework
+pauseInstructionSection.style.display = "block";
+}
+function completeRevealSequence() {
+statePhase = "discovering";
+pauseInstructionSection.style.display = "none";
+statusMessage.innerText = "Revealing Identity Details...";
+// Force complete reveal framework exposure check mapping
+gridBlocks.forEach(b => b.covered = false);
+renderGridScreen();
+// Rigid 5-second automatic timing delay execution constraint tracking
+delayTimeout = setTimeout(() => {
+statePhase = "solved";
+// Pop text profiles elements layout cleanly containing no canvas deformation
+revealedCityTitle.innerText = currentCity.name;
+revealedCityBlurb.innerText = currentCity.blurb;
+revealPane.classList.add('visible');
+statusMessage.innerText = "";
+nextBtn.style.display = "inline-block";
+}, 5000);
+}
+function handleGuess() {
+if (!gameActive) return;
+const guess = guessInput.value.trim().toLowerCase();
+if (!guess) return;
+// Match tag matrix fields
+if (currentCity.tags.includes(guess)) {
+statusMessage.style.color = "#22c55e";
+statusMessage.innerText = "🎯 Correct Guess!";
+triggerStudyPause();
+} else {
+statusMessage.style.color = "#ef4444";
+statusMessage.innerText = "❌ Incorrect, keep looking!";
+setTimeout(() => { if (statePhase === "playing") statusMessage.innerText = ""; }, 2000);
+}
+}
+// Event Bindings
+actionBtn.addEventListener('click', handleGuess);
+guessInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleGuess(); });
+nextBtn.addEventListener('click', setupGame);
+blockSizeSelect.addEventListener('change', setupGame);
+resumeRevealBtn.addEventListener('click', () => {
+if (statePhase === "paused") {
+completeRevealSequence();
+}
+});
+// Fire Initial State Assembly
+initDeck();
+setupGame();
